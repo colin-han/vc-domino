@@ -107,9 +107,12 @@ CREATE INDEX idx_fund_nav_code_date ON fund_nav(code, nav_date DESC);
 4. 客户端组件每 30s 轮询 `/api/quote/:code` 刷新估值列
 
 ### C. 详情页 `/funds/[code]?range=90`
-1. RSC 读 `fund_nav` 最近 N 日；若不足或最新 `nav_date` 早于上个交易日，触发 `fetchHistory` 增量补齐
-2. Recharts `LineChart`，支持单位/累计净值切换
+1. RSC 读 `fund_nav` 最近 N 日；若不足或最新 `nav_date` 早于上个交易日**或现有行数 < range**，触发 `fetchHistory` 增量补齐（行数判断防止用户切到更长周期时数据不扩张）
+2. Recharts `LineChart` **双 Y 轴**：左轴单位净值（蓝），右轴累计净值（灰）。两轴单位长度相同，右轴整体平移使起点重合 — 详见 [ADR 0001](../../adr/0001-nav-chart-dual-axis.md)
 3. 表格：日期 / 单位净值 / 累计净值 / 涨跌幅
+
+### C.1 数据源限制：lsjz pageSize 封顶 20
+天天基金 `f10/lsjz` 接口忽略 `pageSize > 20`，始终返回 20 行。`fetchHistory(code, minRows)` 内部固定 `pageSize=20` 循环分页 `pageIndex=1,2,...`，直到累计 ≥ minRows 或上游返回不满一页（历史已取尽）。安全上限 `LSJZ_MAX_PAGES = 60`（约 5 年）。
 
 ### D. 数据新鲜度判定
 - 「上个交易日」简易实现：周一~周五且非已知节假日；节假日列表写常量数组，每年初手动补一次（YAGNI，不引第三方日历库）
