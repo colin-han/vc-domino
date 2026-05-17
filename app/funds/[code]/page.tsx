@@ -2,8 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getDb } from '@/lib/db/client';
 import { createQueries } from '@/lib/db/queries';
-import { fetchHistory } from '@/lib/source/eastmoney';
-import { previousTradingDay } from '@/lib/domain/trading-day';
+import { ensureHistory } from '@/lib/server/ensure-history';
 import { NavChart } from '@/components/nav-chart';
 
 export const dynamic = 'force-dynamic';
@@ -31,19 +30,7 @@ export default async function FundPage({
   const meta = q.listWatchlist().find((w) => w.code === code);
   if (!meta) notFound();
 
-  const latest = q.latestNav(code);
-  const need = previousTradingDay(new Date());
-  const haveRows = q.countNav(code);
-  if (!latest || latest.nav_date < need || haveRows < range) {
-    const r = await fetchHistory(code, range + 30);
-    if (r.ok) {
-      try {
-        q.upsertNavRows(code, r.data);
-      } catch {
-        /* ignore */
-      }
-    }
-  }
+  await ensureHistory(q, code, range);
   const rows = q.listNav(code, range);
 
   return (
