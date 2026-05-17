@@ -32,6 +32,7 @@ function parseJsonpBody(body: string): unknown | null {
 
 function toNumberOrNull(v: unknown): number | null {
   if (typeof v !== 'string' && typeof v !== 'number') return null;
+  if (typeof v === 'string' && v.trim() === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
@@ -67,4 +68,49 @@ export async function fetchQuote(code: string): Promise<SourceResult<QuoteData>>
       estTime: typeof o.gztime === 'string' ? o.gztime : null,
     },
   };
+}
+
+export interface HistoryRow {
+  navDate: string;
+  unitNav: number;
+  accNav: number | null;
+  dailyPct: number | null;
+}
+
+interface EastmoneyLsjzRow {
+  FSRQ?: unknown; DWJZ?: unknown; LJJZ?: unknown; JZZZL?: unknown;
+}
+
+export async function fetchHistory(code: string, pageSize: number): Promise<SourceResult<HistoryRow[]>> {
+  const url =
+    `https://api.fund.eastmoney.com/f10/lsjz?fundCode=${code}&pageIndex=1&pageSize=${pageSize}`;
+  let payload: unknown;
+  try {
+    const res = await fetch(url, { headers: HEADERS });
+    if (!res.ok) return { ok: false, reason: 'network' };
+    payload = await res.json();
+  } catch {
+    return { ok: false, reason: 'network' };
+  }
+
+  if (!payload || typeof payload !== 'object') return { ok: false, reason: 'parse' };
+  const data = (payload as Record<string, unknown>).Data;
+  if (!data || typeof data !== 'object') return { ok: false, reason: 'parse' };
+  const list = (data as Record<string, unknown>).LSJZList;
+  if (!Array.isArray(list)) return { ok: false, reason: 'parse' };
+
+  const rows: HistoryRow[] = [];
+  for (const raw of list as EastmoneyLsjzRow[]) {
+    const navDate = typeof raw.FSRQ === 'string' ? raw.FSRQ : null;
+    const unitNav = toNumberOrNull(raw.DWJZ);
+    if (!navDate || unitNav === null) continue;
+    rows.push({
+      navDate,
+      unitNav,
+      accNav: toNumberOrNull(raw.LJJZ),
+      dailyPct: toNumberOrNull(raw.JZZZL),
+    });
+  }
+  rows.sort((a, b) => (a.navDate < b.navDate ? -1 : 1));
+  return { ok: true, data: rows };
 }
