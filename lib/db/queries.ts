@@ -1,4 +1,5 @@
 import type { Database } from 'better-sqlite3';
+import type { TagColor } from '@/lib/domain/tag-palette';
 
 export interface WatchlistItem {
   code: string;
@@ -25,6 +26,16 @@ export interface NavInput {
   unitNav: number;
   accNav: number | null;
   dailyPct: number | null;
+}
+
+export interface TagRow {
+  id: number;
+  name: string;
+  color: TagColor;
+  sort_order: number;
+}
+export interface TagWithCount extends TagRow {
+  fund_count: number;
 }
 
 export function createQueries(db: Database) {
@@ -69,6 +80,39 @@ export function createQueries(db: Database) {
   const countWatchStmt = db.prepare(`SELECT COUNT(*) AS n FROM watchlist`);
   const countNavStmt = db.prepare(`SELECT COUNT(*) AS n FROM fund_nav WHERE code = ?`);
 
+  const insertTagStmt = db.prepare(
+    `INSERT INTO tags (name, color, sort_order, created_at) VALUES (?, ?, ?, ?)`,
+  );
+  const getTagStmt = db.prepare(
+    `SELECT id, name, color, sort_order FROM tags WHERE id = ?`,
+  );
+  const listTagsStmt = db.prepare(`
+    SELECT t.id, t.name, t.color, t.sort_order,
+           COALESCE(f.cnt, 0) AS fund_count
+    FROM tags t
+    LEFT JOIN (
+      SELECT tag_id, COUNT(*) AS cnt FROM fund_tags GROUP BY tag_id
+    ) f ON f.tag_id = t.id
+    ORDER BY t.sort_order ASC, t.name ASC
+  `);
+  const updateTagNameStmt = db.prepare(`UPDATE tags SET name = ? WHERE id = ?`);
+  const updateTagColorStmt = db.prepare(`UPDATE tags SET color = ? WHERE id = ?`);
+  const deleteTagStmt = db.prepare(`DELETE FROM tags WHERE id = ?`);
+  const insertFundTagStmt = db.prepare(
+    `INSERT INTO fund_tags (code, tag_id, added_at) VALUES (?, ?, ?)`,
+  );
+  const deleteFundTagStmt = db.prepare(
+    `DELETE FROM fund_tags WHERE code = ? AND tag_id = ?`,
+  );
+  const listTagsForFundStmt = db.prepare(`
+    SELECT t.id, t.name, t.color, t.sort_order
+    FROM tags t
+    JOIN fund_tags ft ON ft.tag_id = t.id
+    WHERE ft.code = ?
+    ORDER BY t.sort_order ASC, t.name ASC
+  `);
+  const countTagsStmt = db.prepare(`SELECT COUNT(*) AS n FROM tags`);
+
   return {
     upsertMeta(input: MetaInput) {
       upsertMetaStmt.run({ ...input, ts: Date.now() });
@@ -107,6 +151,34 @@ export function createQueries(db: Database) {
         | { code: string; name: string; type: string | null }
         | undefined;
       return row ?? null;
+    },
+    listTags(): TagWithCount[] {
+      return listTagsStmt.all() as TagWithCount[];
+    },
+    getTag(id: number): TagRow | null {
+      return (getTagStmt.get(id) as TagRow | undefined) ?? null;
+    },
+    createTag(input: { name: string; color: TagColor }): TagRow {
+      const { n } = countTagsStmt.get() as { n: number };
+      const result = insertTagStmt.run(input.name, input.color, n, Date.now());
+      const id = Number(result.lastInsertRowid);
+      return { id, name: input.name, color: input.color, sort_order: n };
+    },
+    updateTag(id: number, patch: { name?: string; color?: TagColor }): void {
+      if (patch.name !== undefined) updateTagNameStmt.run(patch.name, id);
+      if (patch.color !== undefined) updateTagColorStmt.run(patch.color, id);
+    },
+    deleteTag(id: number): void {
+      deleteTagStmt.run(id);
+    },
+    addFundTag(code: string, tagId: number): void {
+      insertFundTagStmt.run(code, tagId, Date.now());
+    },
+    removeFundTag(code: string, tagId: number): void {
+      deleteFundTagStmt.run(code, tagId);
+    },
+    listTagsForFund(code: string): TagRow[] {
+      return listTagsForFundStmt.all(code) as TagRow[];
     },
   };
 }
