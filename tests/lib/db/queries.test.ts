@@ -47,6 +47,21 @@ describe('queries.nav', () => {
     expect(rows[1].unit_nav).toBeCloseTo(1.15, 4);
   });
 
+  it('listNav 返回最近 N 行（升序）', () => {
+    const q = createQueries(freshDb());
+    q.upsertMeta({ code: '110011', name: 'x', type: null });
+    q.upsertNavRows('110011', [
+      { navDate: '2026-05-11', unitNav: 1.0, accNav: null, dailyPct: null },
+      { navDate: '2026-05-12', unitNav: 1.1, accNav: null, dailyPct: null },
+      { navDate: '2026-05-13', unitNav: 1.2, accNav: null, dailyPct: null },
+      { navDate: '2026-05-14', unitNav: 1.3, accNav: null, dailyPct: null },
+      { navDate: '2026-05-15', unitNav: 1.4, accNav: null, dailyPct: null },
+    ]);
+    const rows = q.listNav('110011', 3);
+    expect(rows.map((r) => r.nav_date)).toEqual(['2026-05-13', '2026-05-14', '2026-05-15']);
+    expect(rows[2].unit_nav).toBeCloseTo(1.4, 4);
+  });
+
   it('latestNav 返回最近一行或 null', () => {
     const q = createQueries(freshDb());
     expect(q.latestNav('110011')).toBeNull();

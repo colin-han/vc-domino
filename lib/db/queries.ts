@@ -55,8 +55,11 @@ export function createQueries(db: Database) {
       daily_pct = excluded.daily_pct
   `);
   const listNavStmt = db.prepare(`
-    SELECT nav_date, unit_nav, acc_nav, daily_pct FROM fund_nav
-    WHERE code = ? ORDER BY nav_date ASC LIMIT ?
+    SELECT nav_date, unit_nav, acc_nav, daily_pct FROM (
+      SELECT nav_date, unit_nav, acc_nav, daily_pct
+      FROM fund_nav WHERE code = ?
+      ORDER BY nav_date DESC LIMIT ?
+    ) ORDER BY nav_date ASC
   `);
   const latestNavStmt = db.prepare(`
     SELECT nav_date, unit_nav, acc_nav, daily_pct FROM fund_nav

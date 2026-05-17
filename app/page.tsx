@@ -23,6 +23,7 @@ export default async function Home() {
       name: it.name,
       type: it.type,
       latestNav: latest?.unit_nav ?? (quote.ok ? quote.data.unitNav : null),
+      accNav: latest?.acc_nav ?? null,
       latestNavDate: latest?.nav_date ?? (quote.ok ? quote.data.navDate : null),
       prevPct: latest?.daily_pct ?? null,
       estPct: quote.ok ? quote.data.estPct : null,
