@@ -1,0 +1,20 @@
+node_modules/
+.next/
+.env.local
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+coverage/
+*.log
+.DS_Store
+tsconfig.tsbuildinfo
+.claude/
+
+# Yarn Berry: 仅提交配置，不提交缓存与解包目录
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
