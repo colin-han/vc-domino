@@ -29,3 +29,10 @@ volta run yarn dev
 ## 后续规划
 
 见 `docs/superpowers/specs/2026-05-17-fund-tracker-design.md`。
+
+## 标签
+
+- 在卡片上点 `+ tag` 添加：弹出 picker，输入名字搜索现有 tag 或底部"创建"
+- 9 色调色板任选；颜色与 tag 绑定，所有显示位置同色
+- 顶部 tag 栏点击单选过滤；再点取消
+- tag 通过 migration v2 落库（`tags` / `fund_tags` 两张表）
