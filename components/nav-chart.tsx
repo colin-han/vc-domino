@@ -1,11 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useMemo } from 'react';
 import {
   LineChart,
   Line,
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
@@ -16,50 +17,92 @@ interface Row {
   acc_nav: number | null;
 }
 
-export function NavChart({ rows }: { rows: Row[] }) {
-  const [field, setField] = useState<'unit_nav' | 'acc_nav'>('unit_nav');
+interface AxisPlan {
+  leftDomain: [number, number];
+  rightDomain: [number, number];
+  offset: number;
+}
 
-  const hasAccNav = rows.some((r) => r.acc_nav != null);
+function computeAxes(rows: Row[]): AxisPlan | null {
+  if (rows.length === 0) return null;
+  const anchor = rows.find((r) => r.acc_nav != null) ?? null;
+  if (!anchor) return null;
+  const offset = (anchor.acc_nav as number) - anchor.unit_nav;
+  // 把 acc_nav 折算到"左轴坐标系"再合并，确保两条线都能完整显示
+  const unitVals = rows.map((r) => r.unit_nav);
+  const accInLeftScale = rows
+    .filter((r) => r.acc_nav != null)
+    .map((r) => (r.acc_nav as number) - offset);
+  const all = [...unitVals, ...accInLeftScale];
+  const min = Math.min(...all);
+  const max = Math.max(...all);
+  // 留 2% 留白
+  const pad = (max - min) * 0.02 || 0.01;
+  const leftLo = min - pad;
+  const leftHi = max + pad;
+  return {
+    leftDomain: [leftLo, leftHi],
+    rightDomain: [leftLo + offset, leftHi + offset],
+    offset,
+  };
+}
+
+export function NavChart({ rows }: { rows: Row[] }) {
+  const plan = useMemo(() => computeAxes(rows), [rows]);
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex h-80 w-full items-center justify-center text-sm text-zinc-400">
+        暂无数据
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div className="mb-2 flex gap-2">
-        <button
-          onClick={() => setField('unit_nav')}
-          className={`rounded px-3 py-1 text-sm ${field === 'unit_nav' ? 'bg-blue-600 text-white' : 'border border-zinc-300 text-zinc-600 hover:bg-zinc-50'}`}
-        >
-          单位净值
-        </button>
-        <button
-          onClick={() => setField('acc_nav')}
-          className={`rounded px-3 py-1 text-sm ${field === 'acc_nav' ? 'bg-blue-600 text-white' : 'border border-zinc-300 text-zinc-600 hover:bg-zinc-50'}`}
-        >
-          累计净值
-        </button>
-      </div>
-      {field === 'acc_nav' && !hasAccNav ? (
-        <div className="flex h-80 w-full items-center justify-center text-zinc-400 text-sm">
-          暂无累计净值数据
-        </div>
-      ) : (
-        <div className="h-80 w-full">
-          <ResponsiveContainer>
-            <LineChart data={rows}>
-              <CartesianGrid stroke="#eee" />
-              <XAxis dataKey="nav_date" minTickGap={32} />
-              <YAxis domain={['auto', 'auto']} tickFormatter={(v: number) => v.toFixed(2)} />
-              <Tooltip />
-              <Line
-                type="linear"
-                dataKey={field}
-                stroke="#2563eb"
-                dot={false}
-                strokeWidth={2}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+    <div className="h-80 w-full">
+      <ResponsiveContainer>
+        <LineChart data={rows}>
+          <CartesianGrid stroke="#eee" />
+          <XAxis dataKey="nav_date" minTickGap={32} />
+          <YAxis
+            yAxisId="left"
+            domain={plan ? plan.leftDomain : ['auto', 'auto']}
+            tickFormatter={(v: number) => v.toFixed(2)}
+          />
+          {plan && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              domain={plan.rightDomain}
+              tickFormatter={(v: number) => v.toFixed(2)}
+            />
+          )}
+          <Tooltip />
+          <Legend />
+          {/* 渲染顺序：先画累计净值（灰，垫底），再画单位净值（蓝，置顶） */}
+          {plan && (
+            <Line
+              yAxisId="right"
+              type="linear"
+              dataKey="acc_nav"
+              name="累计净值"
+              stroke="#9ca3af"
+              dot={false}
+              strokeWidth={2}
+              connectNulls
+            />
+          )}
+          <Line
+            yAxisId="left"
+            type="linear"
+            dataKey="unit_nav"
+            name="单位净值"
+            stroke="#2563eb"
+            dot={false}
+            strokeWidth={2}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
