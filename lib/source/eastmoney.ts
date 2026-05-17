@@ -81,9 +81,15 @@ interface EastmoneyLsjzRow {
   FSRQ?: unknown; DWJZ?: unknown; LJJZ?: unknown; JZZZL?: unknown;
 }
 
-export async function fetchHistory(code: string, pageSize: number): Promise<SourceResult<HistoryRow[]>> {
-  const url =
-    `https://api.fund.eastmoney.com/f10/lsjz?fundCode=${code}&pageIndex=1&pageSize=${pageSize}`;
+// 天天基金 lsjz 接口 pageSize 静默封顶 20，必须循环分页才能拿到长历史
+const LSJZ_PAGE_SIZE = 20;
+const LSJZ_MAX_PAGES = 60; // 安全上限：60 * 20 = 1200 行，约 5 年
+
+async function fetchHistoryPage(
+  code: string,
+  pageIndex: number,
+): Promise<SourceResult<HistoryRow[]>> {
+  const url = `https://api.fund.eastmoney.com/f10/lsjz?fundCode=${code}&pageIndex=${pageIndex}&pageSize=${LSJZ_PAGE_SIZE}`;
   let payload: unknown;
   try {
     const res = await fetch(url, { headers: HEADERS });
@@ -95,7 +101,8 @@ export async function fetchHistory(code: string, pageSize: number): Promise<Sour
 
   if (!payload || typeof payload !== 'object') return { ok: false, reason: 'parse' };
   const data = (payload as Record<string, unknown>).Data;
-  if (!data || typeof data !== 'object') return { ok: false, reason: 'parse' };
+  if (data === null) return { ok: true, data: [] };
+  if (typeof data !== 'object') return { ok: false, reason: 'parse' };
   const list = (data as Record<string, unknown>).LSJZList;
   if (!Array.isArray(list)) return { ok: false, reason: 'parse' };
 
@@ -111,6 +118,23 @@ export async function fetchHistory(code: string, pageSize: number): Promise<Sour
       dailyPct: toNumberOrNull(raw.JZZZL),
     });
   }
-  rows.sort((a, b) => (a.navDate < b.navDate ? -1 : 1));
   return { ok: true, data: rows };
+}
+
+// 拉取至少 minRows 行历史净值；返回升序排列。pageSize 由上游硬限制（20）。
+export async function fetchHistory(
+  code: string,
+  minRows: number,
+): Promise<SourceResult<HistoryRow[]>> {
+  const all: HistoryRow[] = [];
+  for (let page = 1; page <= LSJZ_MAX_PAGES; page += 1) {
+    const r = await fetchHistoryPage(code, page);
+    if (!r.ok) return r;
+    if (r.data.length === 0) break;
+    all.push(...r.data);
+    if (all.length >= minRows) break;
+    if (r.data.length < LSJZ_PAGE_SIZE) break; // 不满一页 = 历史已取尽
+  }
+  all.sort((a, b) => (a.navDate < b.navDate ? -1 : 1));
+  return { ok: true, data: all };
 }

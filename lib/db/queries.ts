@@ -67,6 +67,7 @@ export function createQueries(db: Database) {
   `);
   const getMetaStmt = db.prepare(`SELECT code, name, type FROM fund_meta WHERE code = ?`);
   const countWatchStmt = db.prepare(`SELECT COUNT(*) AS n FROM watchlist`);
+  const countNavStmt = db.prepare(`SELECT COUNT(*) AS n FROM fund_nav WHERE code = ?`);
 
   return {
     upsertMeta(input: MetaInput) {
@@ -96,6 +97,10 @@ export function createQueries(db: Database) {
     latestNav(code: string): NavRow | null {
       const row = latestNavStmt.get(code) as NavRow | undefined;
       return row ?? null;
+    },
+    countNav(code: string): number {
+      const row = countNavStmt.get(code) as { n: number };
+      return row.n;
     },
     getMeta(code: string): { code: string; name: string; type: string | null } | null {
       const row = getMetaStmt.get(code) as

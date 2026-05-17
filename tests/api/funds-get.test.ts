@@ -23,11 +23,22 @@ beforeEach(() => {
 });
 
 describe('GET /api/funds/[code]', () => {
-  it('DB 已有最新数据时直接返回，不调用上游', async () => {
+  it('DB 已有最新数据且行数充足时直接返回，不调用上游', async () => {
     const q = createQueries(getDb());
     q.upsertMeta({ code: '110011', name: 'A', type: null });
-    const today = new Date().toISOString().slice(0, 10);
-    q.upsertNavRows('110011', [{ navDate: today, unitNav: 1, accNav: null, dailyPct: null }]);
+    // 写入足够多的近期数据：最近一行为今天，向前回溯 60 天
+    const today = new Date();
+    const rows = Array.from({ length: 60 }, (_, i) => {
+      const d = new Date(today);
+      d.setUTCDate(today.getUTCDate() - i);
+      return {
+        navDate: d.toISOString().slice(0, 10),
+        unitNav: 1 + i * 0.001,
+        accNav: null,
+        dailyPct: null,
+      };
+    });
+    q.upsertNavRows('110011', rows);
     const res = await GET(new Request('http://x?range=30'), { params: { code: '110011' } });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -36,7 +47,7 @@ describe('GET /api/funds/[code]', () => {
     expect(mockedHistory).not.toHaveBeenCalled();
   });
 
-  it('DB 不足时触发回填', async () => {
+  it('DB 数据陈旧时触发回填', async () => {
     const q = createQueries(getDb());
     q.upsertMeta({ code: '110011', name: 'A', type: null });
     mockedHistory.mockResolvedValue({
@@ -44,6 +55,17 @@ describe('GET /api/funds/[code]', () => {
       data: [{ navDate: '2026-05-15', unitNav: 1, accNav: null, dailyPct: null }],
     });
     const res = await GET(new Request('http://x?range=30'), { params: { code: '110011' } });
+    expect(res.status).toBe(200);
+    expect(mockedHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('行数不足请求范围时触发回填', async () => {
+    const q = createQueries(getDb());
+    q.upsertMeta({ code: '110011', name: 'A', type: null });
+    const today = new Date().toISOString().slice(0, 10);
+    q.upsertNavRows('110011', [{ navDate: today, unitNav: 1, accNav: null, dailyPct: null }]);
+    mockedHistory.mockResolvedValue({ ok: true, data: [] });
+    const res = await GET(new Request('http://x?range=90'), { params: { code: '110011' } });
     expect(res.status).toBe(200);
     expect(mockedHistory).toHaveBeenCalledTimes(1);
   });

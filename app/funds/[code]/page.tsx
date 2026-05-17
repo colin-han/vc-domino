@@ -33,7 +33,8 @@ export default async function FundPage({
 
   const latest = q.latestNav(code);
   const need = previousTradingDay(new Date());
-  if (!latest || latest.nav_date < need) {
+  const haveRows = q.countNav(code);
+  if (!latest || latest.nav_date < need || haveRows < range) {
     const r = await fetchHistory(code, range + 30);
     if (r.ok) {
       try {

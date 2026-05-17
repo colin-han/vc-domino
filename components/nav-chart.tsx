@@ -50,7 +50,7 @@ export function NavChart({ rows }: { rows: Row[] }) {
               <YAxis domain={['auto', 'auto']} tickFormatter={(v: number) => v.toFixed(2)} />
               <Tooltip />
               <Line
-                type="monotone"
+                type="linear"
                 dataKey={field}
                 stroke="#2563eb"
                 dot={false}
