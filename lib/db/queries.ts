@@ -180,6 +180,17 @@ export function createQueries(db: Database) {
     listTagsForFund(code: string): TagRow[] {
       return listTagsForFundStmt.all(code) as TagRow[];
     },
+    listWatchlistWithTags(): Array<WatchlistItem & { tags: TagRow[] }> {
+      const items = listWatchStmt.all() as WatchlistItem[];
+      return items.map((it) => ({ ...it, tags: listTagsForFundStmt.all(it.code) as TagRow[] }));
+    },
+    listNavSeriesForCodes(codes: string[], range: number): Map<string, NavRow[]> {
+      const result = new Map<string, NavRow[]>();
+      for (const code of codes) {
+        result.set(code, listNavStmt.all(code, range) as NavRow[]);
+      }
+      return result;
+    },
   };
 }
 
