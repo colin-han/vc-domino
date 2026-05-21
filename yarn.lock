@@ -737,12 +737,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/better-sqlite3@npm:7.6.10":
-  version: 7.6.10
-  resolution: "@types/better-sqlite3@npm:7.6.10"
+"@types/better-sqlite3@npm:^7.6.13":
+  version: 7.6.13
+  resolution: "@types/better-sqlite3@npm:7.6.13"
   dependencies:
     "@types/node": "npm:*"
-  checksum: 10c0/11c4da950e0e1a31270e8c7d98ba34fa5a28fbd3280ffa75945983291d2ec5bc87a9b3b378c21c042249a415d557066a0431da568b83ff9e1bac53eddf4f5adc
+  checksum: 10c0/c4336e7b92343eb0e988ded007c53fa9887b98a38d61175226e86124a1a2c28b1a4e3892873c5041e350b7bfa2901f85c82db1542c4f0eed1d3a899682c92106
   languageName: node
   linkType: hard
 
@@ -1625,14 +1625,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"better-sqlite3@npm:11.1.2":
-  version: 11.1.2
-  resolution: "better-sqlite3@npm:11.1.2"
+"better-sqlite3@npm:^12.10.0":
+  version: 12.10.0
+  resolution: "better-sqlite3@npm:12.10.0"
   dependencies:
     bindings: "npm:^1.5.0"
     node-gyp: "npm:latest"
     prebuild-install: "npm:^7.1.1"
-  checksum: 10c0/d4f4d7e56fc854fdf794781fc99fe5c0f7f373d635769d8ad1b7b22278bd91cdcdfe03360cbc63b51ab208b86a05465281a2b4c55065d6c3e911274f6f1e07cb
+  checksum: 10c0/b269792c1e456201b16fb9abd1e3fa9284d7710929f991899cebbb61e56dc3703673be29dadcb2f4a2d02961c49145f53d7d7b13b7b47298c033ec9de524f34f
   languageName: node
   linkType: hard
 
@@ -2203,7 +2203,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "domino@workspace:."
   dependencies:
-    "@types/better-sqlite3": "npm:7.6.10"
+    "@types/better-sqlite3": "npm:^7.6.13"
     "@types/node": "npm:20.14.10"
     "@types/react": "npm:18.3.3"
     "@types/react-dom": "npm:18.3.0"
@@ -2211,7 +2211,7 @@ __metadata:
     "@typescript-eslint/parser": "npm:^7.18.0"
     "@vitest/coverage-v8": "npm:2.0.5"
     autoprefixer: "npm:10.4.19"
-    better-sqlite3: "npm:11.1.2"
+    better-sqlite3: "npm:^12.10.0"
     clsx: "npm:2.1.1"
     eslint: "npm:8.57.0"
     eslint-config-next: "npm:14.2.5"
