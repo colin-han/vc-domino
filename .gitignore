@@ -10,6 +10,7 @@ coverage/
 .DS_Store
 tsconfig.tsbuildinfo
 .claude/
+.superpowers/
 
 # Yarn Berry: 仅提交配置，不提交缓存与解包目录
 .yarn/*
