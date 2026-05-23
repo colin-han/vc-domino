@@ -38,6 +38,14 @@ export interface TagWithCount extends TagRow {
   fund_count: number;
 }
 
+export interface PortfolioRow {
+  id: number;
+  name: string;
+  is_simulated: boolean;
+  sort_order: number;
+  created_at: number;
+}
+
 export function createQueries(db: Database) {
   const upsertMetaStmt = db.prepare(`
     INSERT INTO fund_meta (code, name, type, meta_updated_at)
@@ -112,6 +120,34 @@ export function createQueries(db: Database) {
     ORDER BY t.sort_order ASC, t.name ASC
   `);
   const countTagsStmt = db.prepare(`SELECT COUNT(*) AS n FROM tags`);
+
+  const insertPortfolioStmt = db.prepare(
+    `INSERT INTO portfolios (name, is_simulated, sort_order, created_at) VALUES (?, ?, ?, ?)`,
+  );
+  const updatePortfolioNameStmt = db.prepare(`UPDATE portfolios SET name = ? WHERE id = ?`);
+  const updatePortfolioSimStmt = db.prepare(
+    `UPDATE portfolios SET is_simulated = ? WHERE id = ?`,
+  );
+  const deletePortfolioStmt = db.prepare(`DELETE FROM portfolios WHERE id = ?`);
+  const getPortfolioStmt = db.prepare(
+    `SELECT id, name, is_simulated, sort_order, created_at FROM portfolios WHERE id = ?`,
+  );
+  const listPortfoliosStmt = db.prepare(
+    `SELECT id, name, is_simulated, sort_order, created_at FROM portfolios
+     ORDER BY sort_order ASC, created_at ASC`,
+  );
+  const countPortfoliosStmt = db.prepare(`SELECT COUNT(*) AS n FROM portfolios`);
+
+  const insertTransactionStmt = db.prepare(`
+    INSERT INTO transactions (portfolio_id, code, trade_date, side, shares, unit_nav, fee, note, created_at)
+    VALUES (@portfolio_id, @code, @trade_date, @side, @shares, @unit_nav, @fee, @note, @created_at)
+  `);
+
+  function rowToPortfolio(r: {
+    id: number; name: string; is_simulated: number; sort_order: number; created_at: number;
+  }): PortfolioRow {
+    return { ...r, is_simulated: r.is_simulated === 1 };
+  }
 
   return {
     upsertMeta(input: MetaInput) {
@@ -190,6 +226,46 @@ export function createQueries(db: Database) {
         result.set(code, listNavStmt.all(code, range) as NavRow[]);
       }
       return result;
+    },
+    listPortfolios(): PortfolioRow[] {
+      return (listPortfoliosStmt.all() as Array<{
+        id: number; name: string; is_simulated: number; sort_order: number; created_at: number;
+      }>).map(rowToPortfolio);
+    },
+    getPortfolio(id: number): PortfolioRow | null {
+      const row = getPortfolioStmt.get(id) as
+        | { id: number; name: string; is_simulated: number; sort_order: number; created_at: number; }
+        | undefined;
+      return row ? rowToPortfolio(row) : null;
+    },
+    countPortfolios(): number {
+      return (countPortfoliosStmt.get() as { n: number }).n;
+    },
+    createPortfolio(input: { name: string; is_simulated: boolean }): PortfolioRow {
+      const { n } = countPortfoliosStmt.get() as { n: number };
+      const result = insertPortfolioStmt.run(
+        input.name, input.is_simulated ? 1 : 0, n, Date.now(),
+      );
+      const id = Number(result.lastInsertRowid);
+      return rowToPortfolio({
+        id, name: input.name, is_simulated: input.is_simulated ? 1 : 0,
+        sort_order: n, created_at: Date.now(),
+      });
+    },
+    updatePortfolio(id: number, patch: { name?: string; is_simulated?: boolean }): void {
+      if (patch.name !== undefined) updatePortfolioNameStmt.run(patch.name, id);
+      if (patch.is_simulated !== undefined)
+        updatePortfolioSimStmt.run(patch.is_simulated ? 1 : 0, id);
+    },
+    deletePortfolio(id: number): void {
+      deletePortfolioStmt.run(id);
+    },
+    insertTransaction(input: {
+      portfolio_id: number; code: string; trade_date: string;
+      side: 'BUY' | 'SELL'; shares: number; unit_nav: number; fee: number; note: string | null;
+    }): number {
+      const r = insertTransactionStmt.run({ ...input, created_at: Date.now() });
+      return Number(r.lastInsertRowid);
     },
   };
 }
