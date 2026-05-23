@@ -8,12 +8,21 @@ const getUserTables = (db: InstanceType<typeof Database>) =>
     .sort();
 
 describe('runMigrations', () => {
-  it('在空库上创建 5 张表并将 user_version 设为 2', () => {
+  it('在空库上创建 8 张表并将 user_version 设为 3', () => {
     const db = new Database(':memory:');
     runMigrations(db);
     const names = getUserTables(db);
-    expect(names).toEqual(['fund_meta', 'fund_nav', 'fund_tags', 'tags', 'watchlist']);
-    expect((db.pragma('user_version', { simple: true }) as number)).toBe(2);
+    expect(names).toEqual([
+      'fund_fee_config',
+      'fund_meta',
+      'fund_nav',
+      'fund_tags',
+      'portfolios',
+      'tags',
+      'transactions',
+      'watchlist',
+    ]);
+    expect((db.pragma('user_version', { simple: true }) as number)).toBe(3);
   });
 
   it('幂等：重复执行不报错', () => {
@@ -24,12 +33,21 @@ describe('runMigrations', () => {
 });
 
 describe('runMigrations v2', () => {
-  it('在已 v1 库上升级到 v2，新增 tags + fund_tags', () => {
+  it('在已 v1 库上升级到 v3，新增 tags + fund_tags + portfolios + transactions + fund_fee_config', () => {
     const db = new Database(':memory:');
     runMigrations(db);
-    expect(db.pragma('user_version', { simple: true })).toBe(2);
+    expect(db.pragma('user_version', { simple: true })).toBe(3);
     const names = getUserTables(db);
-    expect(names).toEqual(['fund_meta', 'fund_nav', 'fund_tags', 'tags', 'watchlist']);
+    expect(names).toEqual([
+      'fund_fee_config',
+      'fund_meta',
+      'fund_nav',
+      'fund_tags',
+      'portfolios',
+      'tags',
+      'transactions',
+      'watchlist',
+    ]);
   });
 
   it('fund_tags 的 FK 在删除 tag 时级联清空关联', () => {

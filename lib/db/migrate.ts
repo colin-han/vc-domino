@@ -60,8 +60,8 @@ const MIGRATIONS: Array<(db: Database) => void> = [
         code          TEXT    NOT NULL,
         trade_date    TEXT    NOT NULL,
         side          TEXT    NOT NULL CHECK (side IN ('BUY','SELL')),
-        shares        REAL    NOT NULL,
-        unit_nav      REAL    NOT NULL,
+        shares        REAL    NOT NULL CHECK (shares > 0),
+        unit_nav      REAL    NOT NULL CHECK (unit_nav > 0),
         fee           REAL    NOT NULL DEFAULT 0,
         note          TEXT,
         created_at    INTEGER NOT NULL

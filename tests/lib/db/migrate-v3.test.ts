@@ -42,7 +42,6 @@ describe('migration v3', () => {
   it('transactions.portfolio_id 外键 ON DELETE CASCADE', () => {
     const db = freshDb();
     db.exec(`
-      INSERT INTO fund_meta(code,name,type,meta_updated_at) VALUES ('000001','X',NULL, 0);
       INSERT INTO transactions(portfolio_id, code, trade_date, side, shares, unit_nav, fee, created_at)
       VALUES (1,'000001','2026-05-01','BUY',100,1.0,0,0);
     `);
@@ -53,10 +52,23 @@ describe('migration v3', () => {
 
   it('transactions.side 仅允许 BUY/SELL', () => {
     const db = freshDb();
-    db.exec(`INSERT INTO fund_meta(code,name,type,meta_updated_at) VALUES ('000001','X',NULL,0)`);
     expect(() =>
       db.exec(
         `INSERT INTO transactions(portfolio_id,code,trade_date,side,shares,unit_nav,fee,created_at) VALUES (1,'000001','2026-05-01','HOLD',1,1,0,0)`,
+      ),
+    ).toThrow();
+  });
+
+  it('transactions.shares <= 0 或 unit_nav <= 0 时被 CHECK 拒绝', () => {
+    const db = freshDb();
+    expect(() =>
+      db.exec(
+        `INSERT INTO transactions(portfolio_id,code,trade_date,side,shares,unit_nav,fee,created_at) VALUES (1,'000001','2026-05-01','BUY',-1,1.0,0,0)`,
+      ),
+    ).toThrow();
+    expect(() =>
+      db.exec(
+        `INSERT INTO transactions(portfolio_id,code,trade_date,side,shares,unit_nav,fee,created_at) VALUES (1,'000001','2026-05-01','BUY',100,0,0,0)`,
       ),
     ).toThrow();
   });
