@@ -44,6 +44,43 @@ const MIGRATIONS: Array<(db: Database) => void> = [
       CREATE INDEX IF NOT EXISTS idx_fund_tags_tag ON fund_tags(tag_id);
     `);
   },
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS portfolios (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        name          TEXT    NOT NULL UNIQUE,
+        is_simulated  INTEGER NOT NULL DEFAULT 0,
+        sort_order    INTEGER NOT NULL DEFAULT 0,
+        created_at    INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS transactions (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        portfolio_id  INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+        code          TEXT    NOT NULL,
+        trade_date    TEXT    NOT NULL,
+        side          TEXT    NOT NULL CHECK (side IN ('BUY','SELL')),
+        shares        REAL    NOT NULL,
+        unit_nav      REAL    NOT NULL,
+        fee           REAL    NOT NULL DEFAULT 0,
+        note          TEXT,
+        created_at    INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_tx_portfolio_code_date
+        ON transactions(portfolio_id, code, trade_date);
+
+      CREATE TABLE IF NOT EXISTS fund_fee_config (
+        code            TEXT PRIMARY KEY,
+        buy_fee_rate    REAL,
+        sell_fee_rate   REAL,
+        updated_at      INTEGER NOT NULL
+      );
+
+      INSERT INTO portfolios (name, is_simulated, sort_order, created_at)
+      SELECT '主账本', 0, 0, CAST(strftime('%s','now') AS INTEGER) * 1000
+      WHERE NOT EXISTS (SELECT 1 FROM portfolios);
+    `);
+  },
 ];
 
 export function runMigrations(db: Database): void {
