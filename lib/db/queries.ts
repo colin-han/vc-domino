@@ -46,6 +46,19 @@ export interface PortfolioRow {
   created_at: number;
 }
 
+export interface TxRow {
+  id: number;
+  portfolio_id: number;
+  code: string;
+  trade_date: string;
+  side: 'BUY' | 'SELL';
+  shares: number;
+  unit_nav: number;
+  fee: number;
+  note: string | null;
+  created_at: number;
+}
+
 export function createQueries(db: Database) {
   const upsertMetaStmt = db.prepare(`
     INSERT INTO fund_meta (code, name, type, meta_updated_at)
@@ -142,6 +155,43 @@ export function createQueries(db: Database) {
     INSERT INTO transactions (portfolio_id, code, trade_date, side, shares, unit_nav, fee, note, created_at)
     VALUES (@portfolio_id, @code, @trade_date, @side, @shares, @unit_nav, @fee, @note, @created_at)
   `);
+  const updateTxFieldsStmt = db.prepare(`
+    UPDATE transactions
+       SET trade_date = COALESCE(@trade_date, trade_date),
+           shares    = COALESCE(@shares, shares),
+           unit_nav  = COALESCE(@unit_nav, unit_nav),
+           fee       = COALESCE(@fee, fee),
+           note      = COALESCE(@note, note)
+     WHERE id = @id
+  `);
+  const deleteTxStmt = db.prepare(`DELETE FROM transactions WHERE id = ?`);
+  const getTxStmt = db.prepare(`
+    SELECT id, portfolio_id, code, trade_date, side, shares, unit_nav, fee, note, created_at
+    FROM transactions WHERE id = ?
+  `);
+  const listTxByPortfolioCodeStmt = db.prepare(`
+    SELECT id, portfolio_id, code, trade_date, side, shares, unit_nav, fee, note, created_at
+    FROM transactions WHERE portfolio_id = ? AND code = ?
+    ORDER BY trade_date ASC, id ASC
+  `);
+  const listTxByPortfolioStmt = db.prepare(`
+    SELECT id, portfolio_id, code, trade_date, side, shares, unit_nav, fee, note, created_at
+    FROM transactions WHERE portfolio_id = ?
+    ORDER BY trade_date ASC, id ASC
+  `);
+  const sumByPortfolioCodeStmt = db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN side='BUY'  THEN shares ELSE 0 END),0) AS bought,
+      COALESCE(SUM(CASE WHEN side='SELL' THEN shares ELSE 0 END),0) AS sold
+    FROM transactions WHERE portfolio_id = ? AND code = ?
+  `);
+
+  function assertNoOversell(portfolioId: number, code: string) {
+    const { bought, sold } = sumByPortfolioCodeStmt.get(portfolioId, code) as {
+      bought: number; sold: number;
+    };
+    if (bought + 1e-9 < sold) throw new Error('oversell');
+  }
 
   function rowToPortfolio(r: {
     id: number; name: string; is_simulated: number; sort_order: number; created_at: number;
@@ -264,8 +314,46 @@ export function createQueries(db: Database) {
       portfolio_id: number; code: string; trade_date: string;
       side: 'BUY' | 'SELL'; shares: number; unit_nav: number; fee: number; note: string | null;
     }): number {
-      const r = insertTransactionStmt.run({ ...input, created_at: Date.now() });
-      return Number(r.lastInsertRowid);
+      return db.transaction((): number => {
+        const r = insertTransactionStmt.run({ ...input, created_at: Date.now() });
+        assertNoOversell(input.portfolio_id, input.code);
+        return Number(r.lastInsertRowid);
+      })();
+    },
+    updateTransaction(
+      id: number,
+      patch: { trade_date?: string; shares?: number; unit_nav?: number; fee?: number; note?: string | null },
+    ): void {
+      db.transaction(() => {
+        const before = getTxStmt.get(id) as { portfolio_id: number; code: string } | undefined;
+        if (!before) throw new Error('not_found');
+        updateTxFieldsStmt.run({
+          id,
+          trade_date: patch.trade_date ?? null,
+          shares: patch.shares ?? null,
+          unit_nav: patch.unit_nav ?? null,
+          fee: patch.fee ?? null,
+          note: patch.note ?? null,
+        });
+        assertNoOversell(before.portfolio_id, before.code);
+      })();
+    },
+    deleteTransaction(id: number): void {
+      db.transaction(() => {
+        const before = getTxStmt.get(id) as { portfolio_id: number; code: string } | undefined;
+        if (!before) return;
+        deleteTxStmt.run(id);
+        assertNoOversell(before.portfolio_id, before.code);
+      })();
+    },
+    getTransaction(id: number): TxRow | null {
+      const r = getTxStmt.get(id) as TxRow | undefined;
+      return r ?? null;
+    },
+    listTransactions(portfolioId: number, code?: string): TxRow[] {
+      return (code
+        ? listTxByPortfolioCodeStmt.all(portfolioId, code)
+        : listTxByPortfolioStmt.all(portfolioId)) as TxRow[];
     },
   };
 }
