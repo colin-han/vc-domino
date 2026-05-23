@@ -6,6 +6,7 @@ import type { TagColor } from '@/lib/domain/tag-palette';
 import { TagChip } from './tag-chip';
 import { TagPicker } from './tag-picker';
 import { MiniChart } from './mini-chart';
+import { HoldingsBlock } from './holdings-block';
 
 interface Tag { id: number; name: string; color: TagColor }
 interface NavRow { nav_date: string; unit_nav: number }
@@ -21,6 +22,11 @@ export interface FundCardData {
   estTime: string | null;
   periodPct: number | null;
   series: NavRow[];
+  holding: import('./holdings-block').HoldingsBlockData | null;
+  portfolioMode: 'specific' | 'all';
+  presetPortfolioId: number | null;
+  feeConfig: { buy_fee_rate: number | null; sell_fee_rate: number | null } | null;
+  sharesAvailable: number;
 }
 
 function fmtPct(v: number | null) {
@@ -32,7 +38,15 @@ function pctClass(v: number | null) {
   return v > 0 ? 'text-red-600' : v < 0 ? 'text-green-600' : 'text-zinc-700';
 }
 
-export function FundCard({ data, allTags }: { data: FundCardData; allTags: Tag[] }) {
+export function FundCard({
+  data,
+  allTags,
+  portfolios,
+}: {
+  data: FundCardData;
+  allTags: Tag[];
+  portfolios: Array<{ id: number; name: string; is_simulated: boolean }>;
+}) {
   const router = useRouter();
   const [pickerOpen, setPickerOpen] = useState(false);
   const attachedIds = new Set(data.tags.map((t) => t.id));
@@ -110,6 +124,20 @@ export function FundCard({ data, allTags }: { data: FundCardData; allTags: Tag[]
       </div>
 
       <MiniChart rows={data.series} />
+      <HoldingsBlock
+        data={data.holding}
+        mode={data.portfolioMode}
+        modalCtx={{
+          fundCode: data.code,
+          fundName: data.name,
+          portfolios,
+          presetPortfolioId: data.presetPortfolioId,
+          lockPortfolio: data.portfolioMode === 'specific',
+          defaultUnitNav: data.latestNav,
+          feeConfig: data.feeConfig,
+          sharesAvailable: data.sharesAvailable,
+        }}
+      />
     </div>
   );
 }
