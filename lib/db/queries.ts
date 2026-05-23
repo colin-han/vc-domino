@@ -59,6 +59,13 @@ export interface TxRow {
   created_at: number;
 }
 
+export interface FeeConfigRow {
+  code: string;
+  buy_fee_rate: number | null;
+  sell_fee_rate: number | null;
+  updated_at: number;
+}
+
 export function createQueries(db: Database) {
   const upsertMetaStmt = db.prepare(`
     INSERT INTO fund_meta (code, name, type, meta_updated_at)
@@ -192,6 +199,18 @@ export function createQueries(db: Database) {
     };
     if (bought + 1e-9 < sold) throw new Error('oversell');
   }
+
+  const getFeeConfigStmt = db.prepare(
+    `SELECT code, buy_fee_rate, sell_fee_rate, updated_at FROM fund_fee_config WHERE code = ?`,
+  );
+  const upsertFeeConfigStmt = db.prepare(`
+    INSERT INTO fund_fee_config (code, buy_fee_rate, sell_fee_rate, updated_at)
+    VALUES (@code, @buy, @sell, @ts)
+    ON CONFLICT(code) DO UPDATE SET
+      buy_fee_rate  = COALESCE(@buy,  buy_fee_rate),
+      sell_fee_rate = COALESCE(@sell, sell_fee_rate),
+      updated_at    = @ts
+  `);
 
   function rowToPortfolio(r: {
     id: number; name: string; is_simulated: number; sort_order: number; created_at: number;
@@ -354,6 +373,38 @@ export function createQueries(db: Database) {
       return (code
         ? listTxByPortfolioCodeStmt.all(portfolioId, code)
         : listTxByPortfolioStmt.all(portfolioId)) as TxRow[];
+    },
+    getFeeConfig(code: string): FeeConfigRow | null {
+      return (getFeeConfigStmt.get(code) as FeeConfigRow | undefined) ?? null;
+    },
+    upsertFeeConfig(
+      code: string,
+      patch: { buy_fee_rate?: number | null; sell_fee_rate?: number | null },
+    ): void {
+      upsertFeeConfigStmt.run({
+        code,
+        buy: patch.buy_fee_rate ?? null,
+        sell: patch.sell_fee_rate ?? null,
+        ts: Date.now(),
+      });
+    },
+    listTransactionsForCodes(
+      portfolioId: number | null,
+      codes: string[],
+    ): Map<string, TxRow[]> {
+      const result = new Map<string, TxRow[]>();
+      for (const c of codes) result.set(c, []);
+      if (codes.length === 0) return result;
+      const placeholders = codes.map(() => '?').join(',');
+      const sql = portfolioId == null
+        ? `SELECT * FROM transactions WHERE code IN (${placeholders}) ORDER BY trade_date ASC, id ASC`
+        : `SELECT * FROM transactions WHERE portfolio_id = ? AND code IN (${placeholders}) ORDER BY trade_date ASC, id ASC`;
+      const stmt = db.prepare(sql);
+      const rows = (portfolioId == null
+        ? stmt.all(...codes)
+        : stmt.all(portfolioId, ...codes)) as TxRow[];
+      for (const r of rows) result.get(r.code)!.push(r);
+      return result;
     },
   };
 }
